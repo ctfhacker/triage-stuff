@@ -151,17 +151,17 @@ def context_nocolorcode():
     emulate = bool(pwndbg.config.emulate)
     result = pwndbg.commands.nearpc.nearpc(to_string=True, emulate=emulate)
 
-
     # Special formatting for crashwalk
-    new_result = ['Nearby code:']
+    new_result = []
     colors = ["\x1b[0m", "\x1b[30m", "\x1b[31m", "\x1b[32m", "\x1b[33m", "\x1b[34m", "\x1b[35m", "\x1b[36m", "\x1b[37m", "\x1b[90m", "\x1b[1m", "\x1b[4m"]
     for elem in result:
-        if not elem or '...' in elem:
+        if not elem or '...' in elem or elem == ' ' or u'↓' in elem:
             continue
         for color in colors:
             elem = elem.replace(color, '')
 
-        if '=>' in elem:
+        if u'►' in elem:
+            elem = elem.replace(u'►', '=>')
             elem = elem.split()
             elem.insert(2, 'XXX')
             elem = ' '.join(elem)
