@@ -1,11 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import
+from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
 import sys
 
 import gdb
+
 import pwndbg.arguments
 import pwndbg.chain
 import pwndbg.color
@@ -42,10 +45,7 @@ def context(*args):
 
     result = []
 
-# <<<<<<< Updated upstream
-    # result.append(M.legend())
-# =======
-    # result.append(pwndbg.color.legend())
+    result.append(M.legend())
     if 'n' in args: result.extend(context_nocolorcode())
     if 'r' in args: result.extend(context_regs())
     if 'c' in args: result.extend(context_code())
@@ -72,11 +72,14 @@ def regs(*regs):
     print('\n'.join(get_regs(*regs)))
 
 pwndbg.config.Parameter('show-flags', False, 'whether to show flags registers')
+pwndbg.config.Parameter('show-retaddr-reg', False, 'whether to show return address register')
 
 def get_regs(*regs):
     result = []
 
-    if not regs:
+    if not regs and pwndbg.config.show_retaddr_reg:
+        regs = pwndbg.regs.gpr + (pwndbg.regs.frame, pwndbg.regs.current.stack) + pwndbg.regs.retaddr + (pwndbg.regs.current.pc,)
+    elif not regs:
         regs = pwndbg.regs.gpr + (pwndbg.regs.frame, pwndbg.regs.current.stack, pwndbg.regs.current.pc)
 
     if pwndbg.config.show_flags:
@@ -134,25 +137,13 @@ pwndbg.config.Parameter('emulate', True, '''
 Unicorn emulation of code near the current instruction
 ''')
 
-def context_code():
-    banner = [pwndbg.ui.banner("code")]
-    emulate = bool(pwndbg.config.emulate)
-    result = pwndbg.commands.nearpc.nearpc(to_string=True, emulate=emulate)
-
-    # If we didn't disassemble backward, try to make sure
-    # that the amount of screen space taken is roughly constant.
-    while len(result) < 11:
-        result.append('')
-
-    return banner + result
-
 def context_nocolorcode():
     banner = ['']
     emulate = bool(pwndbg.config.emulate)
     result = pwndbg.commands.nearpc.nearpc(to_string=True, emulate=emulate)
 
     # Special formatting for crashwalk
-    new_result = []
+    new_result = ['Nearby code:']
     colors = ["\x1b[0m", "\x1b[30m", "\x1b[31m", "\x1b[32m", "\x1b[33m", "\x1b[34m", "\x1b[35m", "\x1b[36m", "\x1b[37m", "\x1b[90m", "\x1b[1m", "\x1b[4m"]
     for elem in result:
         if not elem or '...' in elem or elem == ' ' or u'↓' in elem:
@@ -176,9 +167,26 @@ def context_nocolorcode():
     while len(result) < 11:
         new_result.append('')
 
+    for line in context_source():
+        if line.startswith('['):
+            continue
+        new_result.append('0xdeadbeef ' + line)
+
     return banner + new_result
 
-pwndbg.config.Parameter('highlight-source', True, 'whether to highlight the closest source line')
+def context_code():
+    banner = [pwndbg.ui.banner("code")]
+    emulate = bool(pwndbg.config.emulate)
+    result = pwndbg.commands.nearpc.nearpc(to_string=True, emulate=emulate)
+
+    # If we didn't disassemble backward, try to make sure
+    # that the amount of screen space taken is roughly constant.
+    while len(result) < 11:
+        result.append('')
+
+    return banner + result
+
+theme.Parameter('highlight-source', True, 'whether to highlight the closest source line')
 
 def context_source():
     try:
@@ -207,7 +215,7 @@ def context_source():
         if pwndbg.config.highlight_source:
             for i in range(len(source_lines)):
                 if source_lines[i].startswith('%s\t' % closest_line):
-                    source_lines[i] = C.highlight(source_lines[i])
+                    source_lines[i] = '=> ' + C.highlight(source_lines[i])
                     break
 
         banner = [pwndbg.ui.banner("code")]
